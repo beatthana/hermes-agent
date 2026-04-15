@@ -61,4 +61,25 @@ if [ -d "$INSTALL_DIR/skills" ]; then
     python3 "$INSTALL_DIR/tools/skills_sync.py"
 fi
 
+# Default command selection:
+# - On PaaS/container hosts like Railway, $PORT is injected and there is no TTY.
+#   In that case, start the long-running gateway + API server instead of the
+#   interactive chat CLI.
+# - Otherwise preserve the original behavior for explicit commands and local use.
+if [ "$#" -eq 0 ]; then
+    if [ -n "${PORT:-}" ]; then
+        export API_SERVER_ENABLED="${API_SERVER_ENABLED:-true}"
+        export API_SERVER_HOST="${API_SERVER_HOST:-0.0.0.0}"
+        export API_SERVER_PORT="${API_SERVER_PORT:-$PORT}"
+
+        if [ -z "${API_SERVER_KEY:-}" ] && [ "${API_SERVER_HOST}" != "127.0.0.1" ] && [ "${API_SERVER_HOST}" != "localhost" ]; then
+            echo "Refusing to expose Hermes API server without API_SERVER_KEY." >&2
+            echo "Set API_SERVER_KEY in your deployment environment, then redeploy." >&2
+            exit 1
+        fi
+
+        set -- gateway run
+    fi
+fi
+
 exec hermes "$@"
